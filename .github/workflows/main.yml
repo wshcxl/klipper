@@ -1,7 +1,7 @@
-name: Build Klipper Firmware
+name: Build Klipper Firmware (ATmega1280)
 
 on:
-  workflow_dispatch:  # 手动触发
+  workflow_dispatch: # 允许手动点击运行
   push:
     branches: [ master ]
 
@@ -10,37 +10,52 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - name: Checkout Klipper
-      uses: actions/checkout@v3
+    # 1. 下载 Klipper 源码
+    - name: 下载 Klipper 源码
+      uses: actions/checkout@v4
       with:
         repository: Klipper3d/klipper
         path: klipper
     
-    - name: Install Dependencies
+    # 2. 安装编译 AVR 芯片需要的工具
+    - name: 安装编译依赖
       run: |
         sudo apt-get update
-        sudo apt-get install -y gcc-avr binutils-avr avr-libc
+        sudo apt-get install -y gcc-avr binutils-avr avr-libc python3-dev
     
-    - name: Configure Firmware
+    # 3. 配置固件（关键修改：必须选 Serial 串口，不能选 USB！）
+    - name: 配置固件参数
       run: |
         cd klipper
+        # 写入正确的配置文件
         cat > .config << 'EOF'
-        CONFIG_ARCH="avr"
-        CONFIG_MACH="atmega1280"
+        #
+        # Automatically generated file; DO NOT EDIT.
+        # Klipper Firmware Configuration
+        #
+        CONFIG_ARCH_AVR=y
+        CONFIG_MACH_AVR_ATMEGA1280=y
         CONFIG_CLOCK_FREQ=16000000
-        CONFIG_SERIAL_USB=y
-        CONFIG_AVR_ATmega1280=y
+        CONFIG_SERIAL=y
+        CONFIG_SERIAL_BAUD=250000
         EOF
+        
+        # 自动填充默认配置，防止编译时卡住
+        make olddefconfig
     
-    - name: Build Firmware
+    # 4. 开始编译
+    - name: 编译固件
       run: |
         cd klipper
         make clean
         make
     
-    - name: Upload Firmware
-      uses: actions/upload-artifact@v3
+    # 5. 上传编译好的固件（同时上传 bin 和 hex，卡刷线刷都能用）
+    - name: 上传固件文件
+      uses: actions/upload-artifact@v4
       with:
         name: klipper-firmware-atmega1280
-        path: klipper/out/klipper.bin
+        path: |
+          klipper/out/klipper.bin
+          klipper/out/klipper.elf.hex
         retention-days: 30
